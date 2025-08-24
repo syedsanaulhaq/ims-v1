@@ -9,7 +9,7 @@ import { AlertTriangle, Package, Plus, Save, CheckCircle, Search } from "lucide-
 import { useToast } from "@/hooks/use-toast";
 
 interface ItemMaster {
-  id: number;
+  id: string;
   nomenclature: string;
   unit: string;
   category_id: string;
@@ -27,7 +27,7 @@ interface Category {
 }
 
 interface InitialStock {
-  ItemMasterID: number;
+  ItemMasterID: string;
   quantity: number;
   notes: string;
 }
@@ -96,14 +96,11 @@ const InitialInventorySetup = () => {
   };
 
   const getCategoryName = (categoryId: string): string => {
-    console.log('Looking for category ID:', categoryId, 'in categories:', categories); // Debug log
     const category = categories.find(cat => cat.id === categoryId);
-    const result = category?.category_name || `Category ${categoryId}`;
-    console.log('Category result:', result); // Debug log
-    return result;
+    return category?.category_name || `Category ${categoryId}`;
   };
 
-  const updateQuantity = (itemId: number, quantity: number) => {
+  const updateQuantity = (itemId: string, quantity: number) => {
     setInitialStocks(prev => 
       prev.map(stock => 
         stock.ItemMasterID === itemId 

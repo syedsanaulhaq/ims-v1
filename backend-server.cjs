@@ -2501,11 +2501,11 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
 
       // Check if item master exists
       const itemMasterResult = await transaction.request()
-        .input('itemMasterId', sql.Int, ItemMasterID)
+        .input('itemMasterId', sql.UniqueIdentifier, ItemMasterID)
         .query(`
-          SELECT ItemMasterID, ItemDescription, Unit, Category 
-          FROM ItemMaster 
-          WHERE ItemMasterID = @itemMasterId
+          SELECT id, nomenclature, unit, category_id 
+          FROM item_masters 
+          WHERE id = @itemMasterId
         `);
 
       if (itemMasterResult.recordset.length === 0) {
@@ -2517,64 +2517,71 @@ app.post('/api/inventory/initial-setup', async (req, res) => {
 
       // Check if inventory record already exists for this item
       const existingStockResult = await transaction.request()
-        .input('itemMasterId', sql.Int, ItemMasterID)
+        .input('itemMasterId', sql.UniqueIdentifier, ItemMasterID)
         .query(`
-          SELECT ItemMasterID, AvailableQuantity 
-          FROM CurrentInventory 
-          WHERE ItemMasterID = @itemMasterId
+          SELECT id, current_quantity 
+          FROM current_inventory_stock 
+          WHERE item_master_id = @itemMasterId
         `);
 
       let currentQuantity = 0;
       let operationType = 'INSERT';
 
       if (existingStockResult.recordset.length > 0) {
-        currentQuantity = existingStockResult.recordset[0].AvailableQuantity;
+        currentQuantity = existingStockResult.recordset[0].current_quantity;
         operationType = 'UPDATE';
         
         // Update existing record
         await transaction.request()
-          .input('itemMasterId', sql.Int, ItemMasterID)
-          .input('newQuantity', sql.Decimal(10, 2), quantity)
+          .input('inventoryId', sql.UniqueIdentifier, existingStockResult.recordset[0].id)
+          .input('newQuantity', sql.Int, quantity)
           .input('setupBy', sql.NVarChar, setupBy)
           .query(`
-            UPDATE CurrentInventory 
+            UPDATE current_inventory_stock 
             SET 
-              AvailableQuantity = @newQuantity,
-              LastUpdated = GETDATE(),
-              UpdatedBy = @setupBy
-            WHERE ItemMasterID = @itemMasterId
+              current_quantity = @newQuantity,
+              available_quantity = @newQuantity - ISNULL(reserved_quantity, 0),
+              last_updated = GETDATE(),
+              updated_by = @setupBy
+            WHERE id = @inventoryId
           `);
       } else {
         // Insert new record
+        const inventoryId = uuidv4();
         await transaction.request()
-          .input('itemMasterId', sql.Int, ItemMasterID)
-          .input('quantity', sql.Decimal(10, 2), quantity)
+          .input('inventoryId', sql.UniqueIdentifier, inventoryId)
+          .input('itemMasterId', sql.UniqueIdentifier, ItemMasterID)
+          .input('quantity', sql.Int, quantity)
           .input('setupBy', sql.NVarChar, setupBy)
           .query(`
-            INSERT INTO CurrentInventory (
-              ItemMasterID, AvailableQuantity, ReservedQuantity, 
-              LastUpdated, CreatedBy, UpdatedBy
+            INSERT INTO current_inventory_stock (
+              id, item_master_id, current_quantity, available_quantity, reserved_quantity,
+              minimum_stock_level, maximum_stock_level, reorder_point,
+              last_updated, created_at, updated_by
             ) VALUES (
-              @itemMasterId, @quantity, 0, 
-              GETDATE(), @setupBy, @setupBy
+              @inventoryId, @itemMasterId, @quantity, @quantity, 0,
+              0, 0, 0,
+              GETDATE(), GETDATE(), @setupBy
             )
           `);
       }
 
       // Create opening balance transaction record
+      const transactionId = uuidv4();
       await transaction.request()
-        .input('itemMasterId', sql.Int, ItemMasterID)
-        .input('quantity', sql.Decimal(10, 2), quantity)
+        .input('transactionId', sql.UniqueIdentifier, transactionId)
+        .input('itemMasterId', sql.UniqueIdentifier, ItemMasterID)
+        .input('quantity', sql.Int, quantity)
         .input('transactionType', sql.NVarChar, 'Opening_Balance')
-        .input('description', sql.Text, notes || `Initial ${itemMaster.ItemDescription} stock setup`)
+        .input('description', sql.Text, notes || `Initial ${itemMaster.nomenclature} stock setup`)
         .input('setupBy', sql.NVarChar, setupBy)
         .query(`
-          INSERT INTO StockTransactions (
-            ItemMasterID, TransactionType, Quantity, TransactionDate,
-            Description, CreatedBy, CreatedAt
+          INSERT INTO stock_transactions (
+            id, item_master_id, transaction_type, quantity, transaction_date,
+            description, created_by, created_at, updated_at
           ) VALUES (
-            @itemMasterId, @transactionType, @quantity, GETDATE(),
-            @description, @setupBy, GETDATE()
+            @transactionId, @itemMasterId, @transactionType, @quantity, GETDATE(),
+            @description, @setupBy, GETDATE(), GETDATE()
           )
         `);
 
