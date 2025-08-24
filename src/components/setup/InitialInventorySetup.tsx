@@ -8,12 +8,12 @@ import { AlertTriangle, Package, Plus, Save, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ItemMaster {
-  ItemMasterID: number;
-  ItemDescription: string;
-  Unit: string;
-  Category: string;
-  MinimumLevel: number;
-  MaximumLevel: number;
+  id: number;
+  nomenclature: string;
+  unit: string;
+  category_id: string;
+  minimum_stock_level: number;
+  maximum_stock_level: number;
 }
 
 interface InitialStock {
@@ -35,15 +35,15 @@ const InitialInventorySetup = () => {
 
   const fetchItemMasters = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/item-master');
+      const response = await fetch('http://localhost:3001/api/item-masters');
       if (response.ok) {
         const data = await response.json();
         setItemMasters(data);
         // Initialize stock entries for all items
         setInitialStocks(data.map((item: ItemMaster) => ({
-          ItemMasterID: item.ItemMasterID,
+          ItemMasterID: item.id,
           quantity: 0,
-          notes: `Initial ${item.ItemDescription} stock count`
+          notes: `Initial ${item.nomenclature} stock count`
         })));
       }
     } catch (error) {
@@ -165,46 +165,46 @@ const InitialInventorySetup = () => {
       {/* Items Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {itemMasters.map((item) => {
-          const stock = initialStocks.find(s => s.ItemMasterID === item.ItemMasterID);
+          const stock = initialStocks.find(s => s.ItemMasterID === item.id);
           return (
-            <Card key={item.ItemMasterID} className="hover:shadow-md transition-shadow">
+            <Card key={item.id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="text-lg">{item.ItemDescription}</CardTitle>
+                    <CardTitle className="text-lg">{item.nomenclature}</CardTitle>
                     <CardDescription>
-                      Unit: {item.Unit} | Category: {item.Category}
+                      Unit: {item.unit} | Category: {item.category_id}
                     </CardDescription>
                   </div>
                   <Badge variant="secondary" className="text-xs">
-                    Min: {item.MinimumLevel}
+                    Min: {item.minimum_stock_level || 0}
                   </Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <Label htmlFor={`qty-${item.ItemMasterID}`}>Initial Quantity</Label>
+                  <Label htmlFor={`qty-${item.id}`}>Initial Quantity</Label>
                   <Input
-                    id={`qty-${item.ItemMasterID}`}
+                    id={`qty-${item.id}`}
                     type="number"
                     min="0"
                     value={stock?.quantity || 0}
-                    onChange={(e) => updateQuantity(item.ItemMasterID, parseInt(e.target.value) || 0)}
+                    onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
                     placeholder="Enter starting quantity"
                     className="mt-1"
                   />
                 </div>
                 <div>
-                  <Label htmlFor={`notes-${item.ItemMasterID}`}>Notes</Label>
+                  <Label htmlFor={`notes-${item.id}`}>Notes</Label>
                   <Input
-                    id={`notes-${item.ItemMasterID}`}
+                    id={`notes-${item.id}`}
                     value={stock?.notes || ''}
-                    onChange={(e) => updateNotes(item.ItemMasterID, e.target.value)}
+                    onChange={(e) => updateNotes(item.id, e.target.value)}
                     placeholder="Optional notes about this stock"
                     className="mt-1"
                   />
                 </div>
-                {stock && stock.quantity < item.MinimumLevel && stock.quantity > 0 && (
+                {stock && stock.quantity < (item.minimum_stock_level || 0) && stock.quantity > 0 && (
                   <div className="flex items-center gap-2 text-amber-600 text-sm">
                     <AlertTriangle className="h-4 w-4" />
                     Below minimum level
