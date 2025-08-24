@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Package, Plus, Save, CheckCircle } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AlertTriangle, Package, Plus, Save, CheckCircle, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ItemMaster {
@@ -14,6 +15,13 @@ interface ItemMaster {
   category_id: string;
   minimum_stock_level: number;
   maximum_stock_level: number;
+  item_code?: string;
+  specifications?: string;
+}
+
+interface Category {
+  id: number;
+  name: string;
 }
 
 interface InitialStock {
@@ -25,37 +33,66 @@ interface InitialStock {
 const InitialInventorySetup = () => {
   const { toast } = useToast();
   const [itemMasters, setItemMasters] = useState<ItemMaster[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [initialStocks, setInitialStocks] = useState<InitialStock[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredItems, setFilteredItems] = useState<ItemMaster[]>([]);
 
   useEffect(() => {
-    fetchItemMasters();
+    fetchData();
   }, []);
 
-  const fetchItemMasters = async () => {
+  useEffect(() => {
+    // Filter items based on search term
+    const filtered = itemMasters.filter(item => 
+      item.nomenclature.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.item_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      getCategoryName(item.category_id).toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredItems(filtered);
+  }, [searchTerm, itemMasters, categories]);
+
+  const fetchData = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/item-masters');
-      if (response.ok) {
-        const data = await response.json();
-        setItemMasters(data);
+      // Fetch both item masters and categories
+      const [itemMastersResponse, categoriesResponse] = await Promise.all([
+        fetch('http://localhost:3001/api/item-masters'),
+        fetch('http://localhost:3001/api/categories')
+      ]);
+
+      if (itemMastersResponse.ok) {
+        const itemsData = await itemMastersResponse.json();
+        setItemMasters(itemsData);
+        setFilteredItems(itemsData);
         // Initialize stock entries for all items
-        setInitialStocks(data.map((item: ItemMaster) => ({
+        setInitialStocks(itemsData.map((item: ItemMaster) => ({
           ItemMasterID: item.id,
           quantity: 0,
           notes: `Initial ${item.nomenclature} stock count`
         })));
       }
+
+      if (categoriesResponse.ok) {
+        const categoriesData = await categoriesResponse.json();
+        setCategories(categoriesData);
+      }
     } catch (error) {
-      console.error('Error fetching item masters:', error);
+      console.error('Error fetching data:', error);
       toast({
         title: "Error",
-        description: "Failed to load item masters",
+        description: "Failed to load item masters and categories",
         variant: "destructive"
       });
     } finally {
       setLoading(false);
     }
+  };
+
+  const getCategoryName = (categoryId: string): string => {
+    const category = categories.find(cat => cat.id.toString() === categoryId);
+    return category?.name || `Category ${categoryId}`;
   };
 
   const updateQuantity = (itemId: number, quantity: number) => {
@@ -162,59 +199,129 @@ const InitialInventorySetup = () => {
         </CardContent>
       </Card>
 
-      {/* Items Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {itemMasters.map((item) => {
-          const stock = initialStocks.find(s => s.ItemMasterID === item.id);
-          return (
-            <Card key={item.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{item.nomenclature}</CardTitle>
-                    <CardDescription>
-                      Unit: {item.unit} | Category: {item.category_id}
-                    </CardDescription>
-                  </div>
-                  <Badge variant="secondary" className="text-xs">
-                    Min: {item.minimum_stock_level || 0}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <Label htmlFor={`qty-${item.id}`}>Initial Quantity</Label>
-                  <Input
-                    id={`qty-${item.id}`}
-                    type="number"
-                    min="0"
-                    value={stock?.quantity || 0}
-                    onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
-                    placeholder="Enter starting quantity"
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor={`notes-${item.id}`}>Notes</Label>
-                  <Input
-                    id={`notes-${item.id}`}
-                    value={stock?.notes || ''}
-                    onChange={(e) => updateNotes(item.id, e.target.value)}
-                    placeholder="Optional notes about this stock"
-                    className="mt-1"
-                  />
-                </div>
-                {stock && stock.quantity < (item.minimum_stock_level || 0) && stock.quantity > 0 && (
-                  <div className="flex items-center gap-2 text-amber-600 text-sm">
-                    <AlertTriangle className="h-4 w-4" />
-                    Below minimum level
-                  </div>
+      {/* Search Bar */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center space-x-2">
+            <Search className="h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search by item name, code, or category..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-sm"
+            />
+            <Badge variant="outline" className="ml-auto">
+              {filteredItems.length} of {itemMasters.length} items
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Items Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Inventory Items Setup
+          </CardTitle>
+          <CardDescription>
+            Enter initial quantities for each item to establish your baseline inventory
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="max-h-96 overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[300px]">Item Description</TableHead>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Unit</TableHead>
+                  <TableHead>Min Level</TableHead>
+                  <TableHead className="w-[120px]">Initial Qty</TableHead>
+                  <TableHead className="w-[200px]">Notes</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredItems.map((item) => {
+                  const stock = initialStocks.find(s => s.ItemMasterID === item.id);
+                  const isLowStock = stock && stock.quantity > 0 && stock.quantity < (item.minimum_stock_level || 0);
+                  
+                  return (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">
+                        <div>
+                          <div className="font-semibold">{item.nomenclature}</div>
+                          {item.specifications && (
+                            <div className="text-xs text-gray-500 truncate max-w-xs">
+                              {item.specifications}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {item.item_code || 'N/A'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{getCategoryName(item.category_id)}</TableCell>
+                      <TableCell>{item.unit}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="text-xs">
+                          {item.minimum_stock_level || 0}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={stock?.quantity || 0}
+                          onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
+                          placeholder="0"
+                          className="w-20 text-center"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          value={stock?.notes || ''}
+                          onChange={(e) => updateNotes(item.id, e.target.value)}
+                          placeholder="Optional notes"
+                          className="text-xs"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {stock?.quantity === 0 ? (
+                          <Badge variant="outline" className="text-gray-500">
+                            Not Set
+                          </Badge>
+                        ) : isLowStock ? (
+                          <Badge variant="destructive" className="text-xs">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Below Min
+                          </Badge>
+                        ) : (
+                          <Badge variant="default" className="text-xs bg-green-600">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Set
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {filteredItems.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                      {searchTerm ? 'No items match your search criteria' : 'No items available'}
+                    </TableCell>
+                  </TableRow>
                 )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Save Button */}
       <Card>
@@ -228,6 +335,11 @@ const InitialInventorySetup = () => {
                   <AlertTriangle className="h-4 w-4" />
                   Enter quantities for at least one item to proceed
                 </span>
+              )}
+              {searchTerm && (
+                <div className="text-xs text-blue-600 mt-1">
+                  Showing {filteredItems.length} of {itemMasters.length} items (filtered)
+                </div>
               )}
             </div>
             <Button 
