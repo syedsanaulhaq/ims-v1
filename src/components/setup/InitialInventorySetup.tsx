@@ -20,7 +20,7 @@ interface ItemMaster {
 }
 
 interface Category {
-  id: number;
+  id: string;
   category_name: string;
   description?: string;
   status: string;
@@ -78,7 +78,10 @@ const InitialInventorySetup = () => {
 
       if (categoriesResponse.ok) {
         const categoriesData = await categoriesResponse.json();
+        console.log('Categories loaded:', categoriesData); // Debug log
         setCategories(categoriesData);
+      } else {
+        console.error('Failed to fetch categories:', categoriesResponse.status);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -93,8 +96,11 @@ const InitialInventorySetup = () => {
   };
 
   const getCategoryName = (categoryId: string): string => {
-    const category = categories.find(cat => cat.id.toString() === categoryId);
-    return category?.category_name || `Category ${categoryId}`;
+    console.log('Looking for category ID:', categoryId, 'in categories:', categories); // Debug log
+    const category = categories.find(cat => cat.id === categoryId);
+    const result = category?.category_name || `Category ${categoryId}`;
+    console.log('Category result:', result); // Debug log
+    return result;
   };
 
   const updateQuantity = (itemId: number, quantity: number) => {
