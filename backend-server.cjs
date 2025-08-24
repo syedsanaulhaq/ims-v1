@@ -2467,6 +2467,155 @@ app.put('/api/inventory/stock/:id', async (req, res) => {
   }
 });
 
+// Initial Inventory Setup Endpoint
+app.post('/api/inventory/initial-setup', async (req, res) => {
+  const transaction = new sql.Transaction(pool);
+  
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const { initialStocks, setupDate, setupBy } = req.body;
+
+    // Validation
+    if (!initialStocks || !Array.isArray(initialStocks) || initialStocks.length === 0) {
+      return res.status(400).json({ error: 'Initial stocks array is required' });
+    }
+
+    if (!setupBy) {
+      return res.status(400).json({ error: 'Setup by user is required' });
+    }
+
+    await transaction.begin();
+
+    const insertedRecords = [];
+    let totalQuantity = 0;
+
+    for (const stock of initialStocks) {
+      const { ItemMasterID, quantity, notes } = stock;
+
+      if (!ItemMasterID || quantity <= 0) {
+        continue; // Skip invalid entries
+      }
+
+      // Check if item master exists
+      const itemMasterResult = await transaction.request()
+        .input('itemMasterId', sql.Int, ItemMasterID)
+        .query(`
+          SELECT ItemMasterID, ItemDescription, Unit, Category 
+          FROM ItemMaster 
+          WHERE ItemMasterID = @itemMasterId
+        `);
+
+      if (itemMasterResult.recordset.length === 0) {
+        console.warn(`Item Master ID ${ItemMasterID} not found, skipping...`);
+        continue;
+      }
+
+      const itemMaster = itemMasterResult.recordset[0];
+
+      // Check if inventory record already exists for this item
+      const existingStockResult = await transaction.request()
+        .input('itemMasterId', sql.Int, ItemMasterID)
+        .query(`
+          SELECT ItemMasterID, AvailableQuantity 
+          FROM CurrentInventory 
+          WHERE ItemMasterID = @itemMasterId
+        `);
+
+      let currentQuantity = 0;
+      let operationType = 'INSERT';
+
+      if (existingStockResult.recordset.length > 0) {
+        currentQuantity = existingStockResult.recordset[0].AvailableQuantity;
+        operationType = 'UPDATE';
+        
+        // Update existing record
+        await transaction.request()
+          .input('itemMasterId', sql.Int, ItemMasterID)
+          .input('newQuantity', sql.Decimal(10, 2), quantity)
+          .input('setupBy', sql.NVarChar, setupBy)
+          .query(`
+            UPDATE CurrentInventory 
+            SET 
+              AvailableQuantity = @newQuantity,
+              LastUpdated = GETDATE(),
+              UpdatedBy = @setupBy
+            WHERE ItemMasterID = @itemMasterId
+          `);
+      } else {
+        // Insert new record
+        await transaction.request()
+          .input('itemMasterId', sql.Int, ItemMasterID)
+          .input('quantity', sql.Decimal(10, 2), quantity)
+          .input('setupBy', sql.NVarChar, setupBy)
+          .query(`
+            INSERT INTO CurrentInventory (
+              ItemMasterID, AvailableQuantity, ReservedQuantity, 
+              LastUpdated, CreatedBy, UpdatedBy
+            ) VALUES (
+              @itemMasterId, @quantity, 0, 
+              GETDATE(), @setupBy, @setupBy
+            )
+          `);
+      }
+
+      // Create opening balance transaction record
+      await transaction.request()
+        .input('itemMasterId', sql.Int, ItemMasterID)
+        .input('quantity', sql.Decimal(10, 2), quantity)
+        .input('transactionType', sql.NVarChar, 'Opening_Balance')
+        .input('description', sql.Text, notes || `Initial ${itemMaster.ItemDescription} stock setup`)
+        .input('setupBy', sql.NVarChar, setupBy)
+        .query(`
+          INSERT INTO StockTransactions (
+            ItemMasterID, TransactionType, Quantity, TransactionDate,
+            Description, CreatedBy, CreatedAt
+          ) VALUES (
+            @itemMasterId, @transactionType, @quantity, GETDATE(),
+            @description, @setupBy, GETDATE()
+          )
+        `);
+
+      insertedRecords.push({
+        ItemMasterID: ItemMasterID,
+        ItemDescription: itemMaster.ItemDescription,
+        Unit: itemMaster.Unit,
+        PreviousQuantity: currentQuantity,
+        NewQuantity: quantity,
+        Operation: operationType
+      });
+
+      totalQuantity += quantity;
+    }
+
+    await transaction.commit();
+
+    res.json({
+      success: true,
+      message: `Initial inventory setup completed successfully`,
+      data: {
+        itemsProcessed: insertedRecords.length,
+        totalQuantity: totalQuantity,
+        setupDate: setupDate,
+        setupBy: setupBy,
+        records: insertedRecords
+      }
+    });
+
+  } catch (error) {
+    if (transaction._aborted === false) {
+      await transaction.rollback();
+    }
+    console.error('Error setting up initial inventory:', error);
+    res.status(500).json({ 
+      error: 'Failed to setup initial inventory', 
+      details: error.message 
+    });
+  }
+});
+
 // =============================================================================
 // STOCK RETURN MANAGEMENT ENDPOINTS
 // =============================================================================
