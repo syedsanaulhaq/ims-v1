@@ -21,7 +21,9 @@ interface ItemMaster {
 
 interface Category {
   id: number;
-  name: string;
+  category_name: string;
+  description?: string;
+  status: string;
 }
 
 interface InitialStock {
@@ -92,7 +94,7 @@ const InitialInventorySetup = () => {
 
   const getCategoryName = (categoryId: string): string => {
     const category = categories.find(cat => cat.id.toString() === categoryId);
-    return category?.name || `Category ${categoryId}`;
+    return category?.category_name || `Category ${categoryId}`;
   };
 
   const updateQuantity = (itemId: number, quantity: number) => {

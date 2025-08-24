@@ -4687,6 +4687,87 @@ app.delete('/api/item-masters/:id', async (req, res) => {
 });
 
 // =============================================================================
+// CATEGORIES ENDPOINTS
+// =============================================================================
+
+// GET all categories
+app.get('/api/categories', async (req, res) => {
+  try {
+    if (!pool) {
+      // Return mock data when SQL Server is not connected
+      const mockCategories = [
+        { id: 1, category_name: 'Information Technology', description: 'IT equipment and software', status: 'Active' },
+        { id: 2, category_name: 'Furniture', description: 'Office furniture and fixtures', status: 'Active' },
+        { id: 3, category_name: 'Stationery', description: 'Office supplies and stationery', status: 'Active' },
+        { id: 4, category_name: 'Vehicles', description: 'Government vehicles and transport', status: 'Active' },
+        { id: 5, category_name: 'Medical Equipment', description: 'Medical and healthcare equipment', status: 'Active' }
+      ];
+      return res.json(mockCategories);
+    }
+
+    const result = await pool.request().query(`
+      SELECT 
+        id,
+        category_name,
+        description,
+        status,
+        created_at,
+        updated_at
+      FROM categories 
+      WHERE status != 'Deleted'
+      ORDER BY category_name
+    `);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    // Fallback to mock data on any error
+    const mockCategories = [
+      { id: 1, category_name: 'Information Technology', description: 'IT equipment and software', status: 'Active' },
+      { id: 2, category_name: 'Furniture', description: 'Office furniture and fixtures', status: 'Active' },
+      { id: 3, category_name: 'Stationery', description: 'Office supplies and stationery', status: 'Active' },
+      { id: 4, category_name: 'Vehicles', description: 'Government vehicles and transport', status: 'Active' },
+      { id: 5, category_name: 'Medical Equipment', description: 'Medical and healthcare equipment', status: 'Active' }
+    ];
+    res.json(mockCategories);
+  }
+});
+
+// GET single category by ID
+app.get('/api/categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!pool) {
+      const mockCategory = { id: 1, category_name: 'Information Technology', description: 'IT equipment and software', status: 'Active' };
+      return res.json(mockCategory);
+    }
+
+    const result = await pool.request()
+      .input('id', sql.Int, id)
+      .query(`
+        SELECT 
+          id,
+          category_name,
+          description,
+          status,
+          created_at,
+          updated_at
+        FROM categories 
+        WHERE id = @id AND status != 'Deleted'
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Error fetching category:', error);
+    res.status(500).json({ error: 'Failed to fetch category', details: error.message });
+  }
+});
+
+// =============================================================================
 // VENDOR ENDPOINTS
 // =============================================================================
 
