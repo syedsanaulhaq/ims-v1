@@ -58,22 +58,36 @@ const InitialInventorySetup = () => {
 
   const fetchData = async () => {
     try {
-      // Fetch both item masters and categories
-      const [itemMastersResponse, categoriesResponse] = await Promise.all([
+      // Fetch item masters, categories, and existing inventory stock
+      const [itemMastersResponse, categoriesResponse, currentStockResponse] = await Promise.all([
         fetch('http://localhost:3001/api/item-masters'),
-        fetch('http://localhost:3001/api/categories')
+        fetch('http://localhost:3001/api/categories'),
+        fetch('http://localhost:3001/api/inventory/current-stock')
       ]);
 
       if (itemMastersResponse.ok) {
         const itemsData = await itemMastersResponse.json();
         setItemMasters(itemsData);
         setFilteredItems(itemsData);
-        // Initialize stock entries for all items
-        setInitialStocks(itemsData.map((item: ItemMaster) => ({
-          ItemMasterID: item.id,
-          quantity: 0,
-          notes: `Initial ${item.nomenclature} stock count`
-        })));
+
+        // Get existing stock quantities
+        let existingStock = [];
+        if (currentStockResponse.ok) {
+          const stockData = await currentStockResponse.json();
+          if (stockData.success && stockData.data) {
+            existingStock = stockData.data;
+          }
+        }
+
+        // Initialize stock entries with existing quantities or 0
+        setInitialStocks(itemsData.map((item: ItemMaster) => {
+          const existingStockItem = existingStock.find((stock: any) => stock.item_master_id === item.id);
+          return {
+            ItemMasterID: item.id,
+            quantity: existingStockItem ? existingStockItem.current_quantity : 0,
+            notes: `Initial ${item.nomenclature} stock count`
+          };
+        }));
       }
 
       if (categoriesResponse.ok) {
