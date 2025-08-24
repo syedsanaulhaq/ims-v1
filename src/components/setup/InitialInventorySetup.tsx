@@ -127,6 +127,7 @@ const InitialInventorySetup = () => {
 
   const totalItems = initialStocks.filter(stock => stock.quantity > 0).length;
   const totalQuantity = initialStocks.reduce((sum, stock) => sum + stock.quantity, 0);
+  const hasValidData = totalItems > 0; // At least one item has quantity > 0
 
   if (loading) {
     return (
@@ -220,12 +221,20 @@ const InitialInventorySetup = () => {
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-600">
-              Ready to initialize inventory with {totalItems} items and {totalQuantity} total units
+              {hasValidData ? (
+                <>Ready to initialize inventory with {totalItems} items and {totalQuantity} total units</>
+              ) : (
+                <span className="text-amber-600 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Enter quantities for at least one item to proceed
+                </span>
+              )}
             </div>
             <Button 
               onClick={saveInitialInventory}
-              disabled={saving || totalItems === 0}
+              disabled={saving || !hasValidData}
               className="flex items-center gap-2"
+              title={!hasValidData ? "Enter quantities for at least one item to enable" : "Save initial inventory setup"}
             >
               {saving ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
