@@ -70,6 +70,7 @@ const AppSidebar = ({ limitedMenu = false }: AppSidebarProps) => {
       path: "/inventory",
       hasSubmenu: true,
       submenu: [
+        { title: "Initial Setup", path: "/dashboard/initial-setup" },
         { title: "Inventory Dashboard", path: "/dashboard/inventory-dashboard" },
         { title: "Item Master", path: "/dashboard/item-master" },
         { title: "Categories", path: "/dashboard/categories" },

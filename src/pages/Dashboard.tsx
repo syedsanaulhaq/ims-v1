@@ -635,6 +635,18 @@ const Dashboard = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             <Button
               variant="outline"
+              className="h-auto p-4 flex flex-col items-center gap-2 hover:bg-teal-50 hover:border-teal-300 border-2 border-teal-200"
+              onClick={() => navigate('/dashboard/initial-setup')}
+            >
+              <Settings className="h-6 w-6 text-teal-600" />
+              <div className="text-center">
+                <div className="text-sm font-bold text-teal-600">Initial</div>
+                <div className="text-xs text-gray-600">Setup</div>
+              </div>
+            </Button>
+
+            <Button
+              variant="outline"
               className="h-auto p-4 flex flex-col items-center gap-2 hover:bg-blue-50 hover:border-blue-300"
               onClick={() => navigate('/tenders')}
             >

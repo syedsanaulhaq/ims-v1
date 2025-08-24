@@ -47,6 +47,7 @@ import InventoryDetails from "./pages/InventoryDetails";
 import StockOperations from "./pages/StockOperations";
 import ProcurementDetails from "./pages/ProcurementDetails";
 import NotificationsPage from "./pages/NotificationsPage";
+import InitialSetupPage from "./pages/InitialSetupPage";
 
 const queryClient = new QueryClient();
 
@@ -89,6 +90,7 @@ function App() {
                   </ProtectedRoute>
                 }>
                   <Route index element={<Dashboard />} />
+                  <Route path="initial-setup" element={<InitialSetupPage />} />
                   <Route path="inventory-details" element={<InventoryDetails />} />
                   <Route path="stock-operations" element={<StockOperations />} />
                   <Route path="procurement-details" element={<ProcurementDetails />} />
