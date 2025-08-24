@@ -406,53 +406,6 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Quick Stats Summary */}
-      <Card className="bg-gradient-to-r from-slate-50 to-gray-100">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-gray-700">
-            <Database className="h-5 w-5" />
-            System Overview
-          </CardTitle>
-          <CardDescription>Key system metrics and organizational data</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            <div className="text-center p-4 rounded-lg bg-white shadow-sm border">
-              <Building className="h-8 w-8 mx-auto text-blue-600 mb-2" />
-              <div className="text-xl font-bold text-blue-600">{systemStats.totalOffices}</div>
-              <div className="text-sm text-gray-600">Offices</div>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-white shadow-sm border">
-              <MapPin className="h-8 w-8 mx-auto text-green-600 mb-2" />
-              <div className="text-xl font-bold text-green-600">{systemStats.totalWings}</div>
-              <div className="text-sm text-gray-600">Wings</div>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-white shadow-sm border">
-              <Users className="h-8 w-8 mx-auto text-purple-600 mb-2" />
-              <div className="text-xl font-bold text-purple-600">{systemStats.totalUsers}</div>
-              <div className="text-sm text-gray-600">Total Users</div>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-white shadow-sm border">
-              <CheckCircle className="h-8 w-8 mx-auto text-green-600 mb-2" />
-              <div className="text-xl font-bold text-green-600">{systemStats.activeUsers}</div>
-              <div className="text-sm text-gray-600">Active Users</div>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-white shadow-sm border">
-              <Target className="h-8 w-8 mx-auto text-indigo-600 mb-2" />
-              <div className="text-xl font-bold text-indigo-600">{systemStats.totalCategories}</div>
-              <div className="text-sm text-gray-600">Categories</div>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-white shadow-sm border">
-              <TrendingUp className="h-8 w-8 mx-auto text-emerald-600 mb-2" />
-              <div className="text-xl font-bold text-emerald-600">
-                ${systemStats.totalStockValue?.toLocaleString() || 0}
-              </div>
-              <div className="text-sm text-gray-600">Stock Value</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Advanced Analytics & Performance Charts */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         {/* Monthly Activity Trends */}
