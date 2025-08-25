@@ -7157,6 +7157,144 @@ app.delete('/api/notifications/:notificationId', async (req, res) => {
 // ============================================================================
 
 // Graceful shutdown
+// =============================================================================
+// NEW STOCK ACQUISITION DASHBOARD ENDPOINTS
+// =============================================================================
+
+// Get acquisition dashboard overview stats
+app.get('/api/acquisition/dashboard-stats', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    // Get comprehensive acquisition statistics
+    const statsQuery = `
+      WITH TenderStats AS (
+        SELECT 
+          COUNT(*) as totalTenders,
+          COUNT(CASE WHEN is_finalized = 0 THEN 1 END) as activeTenders,
+          COUNT(CASE WHEN is_finalized = 1 THEN 1 END) as completedTenders,
+          SUM(CASE WHEN estimated_total_cost IS NOT NULL THEN estimated_total_cost ELSE 0 END) as totalValue,
+          COUNT(CASE WHEN created_at >= DATEADD(month, -1, GETDATE()) THEN 1 END) as monthlyAcquisitions
+        FROM tenders
+      ),
+      DeliveryStats AS (
+        SELECT 
+          COUNT(DISTINCT d.id) as pendingDeliveries,
+          COUNT(DISTINCT di.item_master_id) as totalItems,
+          SUM(di.quantity_delivered) as totalQuantity
+        FROM deliveries d
+        INNER JOIN delivery_items di ON d.id = di.delivery_id
+        WHERE d.finalized = 0 OR d.finalized IS NULL
+      )
+      SELECT 
+        ts.*,
+        COALESCE(ds.pendingDeliveries, 0) as pendingDeliveries,
+        COALESCE(ds.totalItems, 0) as totalItems,
+        COALESCE(ds.totalQuantity, 0) as totalQuantity
+      FROM TenderStats ts
+      CROSS JOIN DeliveryStats ds
+    `;
+
+    const result = await pool.request().query(statsQuery);
+    
+    if (result.recordset.length > 0) {
+      res.json(result.recordset[0]);
+    } else {
+      res.json({
+        totalTenders: 0,
+        activeTenders: 0,
+        completedTenders: 0,
+        pendingDeliveries: 0,
+        totalValue: 0,
+        totalItems: 0,
+        totalQuantity: 0,
+        monthlyAcquisitions: 0
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching acquisition dashboard stats:', error);
+    res.status(500).json({ error: 'Failed to fetch acquisition dashboard stats' });
+  }
+});
+
+// Get active tenders for acquisition dashboard
+app.get('/api/acquisition/active-tenders', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const tendersQuery = `
+      SELECT 
+        t.id,
+        t.title,
+        t.reference_number as tenderNumber,
+        t.tender_spot_type as acquisitionType,
+        t.status,
+        t.is_finalized as isFinalized,
+        t.created_at as createdAt,
+        COALESCE(t.estimated_total_cost, 0) as totalValue,
+        COALESCE(itemStats.itemCount, 0) as itemCount,
+        CASE WHEN deliveryStats.deliveryCount > 0 THEN 1 ELSE 0 END as hasDeliveries
+      FROM tenders t
+      LEFT JOIN (
+        SELECT 
+          tender_id,
+          COUNT(*) as itemCount
+        FROM tender_items
+        GROUP BY tender_id
+      ) itemStats ON t.id = itemStats.tender_id
+      LEFT JOIN (
+        SELECT 
+          tender_id,
+          COUNT(*) as deliveryCount
+        FROM deliveries
+        GROUP BY tender_id
+      ) deliveryStats ON t.id = deliveryStats.tender_id
+      WHERE t.is_finalized = 0 OR t.is_finalized IS NULL
+      ORDER BY t.updated_at DESC
+    `;
+
+    const result = await pool.request().query(tendersQuery);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error fetching active tenders:', error);
+    res.status(500).json({ error: 'Failed to fetch active tenders' });
+  }
+});
+
+// Get recent deliveries for acquisition dashboard
+app.get('/api/acquisition/recent-deliveries', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+
+    const deliveriesQuery = `
+      SELECT TOP 10
+        di.id,
+        t.title as tenderTitle,
+        im.nomenclature as itemName,
+        di.quantity_delivered as quantityReceived,
+        d.delivery_date as deliveryDate,
+        CASE WHEN d.finalized = 1 THEN 'Delivered' ELSE 'Pending' END as status
+      FROM delivery_items di
+      INNER JOIN deliveries d ON di.delivery_id = d.id
+      INNER JOIN tenders t ON d.tender_id = t.id
+      INNER JOIN item_masters im ON di.item_master_id = im.id
+      ORDER BY d.delivery_date DESC, d.created_at DESC
+    `;
+
+    const result = await pool.request().query(deliveriesQuery);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error fetching recent deliveries:', error);
+    res.status(500).json({ error: 'Failed to fetch recent deliveries' });
+  }
+});
+
 process.on('SIGINT', async () => {
   if (pool) {
     await pool.close();
